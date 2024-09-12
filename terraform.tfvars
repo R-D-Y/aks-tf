@@ -1,0 +1,10 @@
+resource_group_name  = "aks-prod-resource-group"
+location             = "East US"
+cluster_name         = "prodAKSCluster"
+dns_prefix           = "prod-aks"
+node_count           = 3
+vm_size              = "Standard_DS3_v2"
+additional_node_pools_count = 1
+additional_vm_size   = "Standard_DS3_v2"
+additional_node_count = 2
+environment          = "prod"
