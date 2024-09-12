@@ -1,3 +1,12 @@
+terraform {
+  backend "azurerm" {
+    resource_group_name   = "aks-prod-resource-group"   # Groupe de ressources Azure contenant le compte de stockage
+    storage_account_name  = "tfstateaccount"            # Nom du compte de stockage Azure
+    container_name        = "terraform-state"           # Nom du conteneur Blob où stocker l'état
+    key                   = "terraform.tfstate"         # Nom du fichier tfstate dans le conteneur
+  }
+}
+
 provider "azurerm" {
   features {}
 
