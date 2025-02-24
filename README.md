@@ -1,6 +1,6 @@
 # aks-tf
 
-'''
+'''yaml
 def get_instance_credentials(instance_guid: str, org_name: str, space_name: str) -> Dict:
     """Get RabbitMQ credentials from app binding (VCAP_SERVICES)"""
 
