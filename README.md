@@ -1,5 +1,6 @@
 # aks-tf
 
+'''
 def get_instance_credentials(instance_guid: str, org_name: str, space_name: str) -> Dict:
     """Get RabbitMQ credentials from app binding (VCAP_SERVICES)"""
 
@@ -41,3 +42,4 @@ def get_instance_credentials(instance_guid: str, org_name: str, space_name: str)
     except Exception as e:
         print(f"Error retrieving credentials from app binding: {e}")
         return {}
+'''
