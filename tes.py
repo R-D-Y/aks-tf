@@ -1,64 +1,53 @@
-import subprocess
-import json
+get_tags() {
+    local resource_group="$1"
+    local server="$2"
+    local db_name="$3"
 
-# GUIDs à renseigner
-PCF_ORG_GUID = "your-org-guid"
-PCF_SPACE_GUID = "your-space-guid"
-PCF_INSTANCE_ID = "your-instance-id"
+    # Récupérer les tags de la base de données
+    local tags_json
+    tags_json=$(az sql db show --resource-group "$resource_group" --server "$server" --name "$db_name" --query "tags" --output json)
 
-def get_cf_info(endpoint, guid):
-    """Utilise 'cf curl' pour récupérer des informations depuis Cloud Foundry."""
-    try:
-        result = subprocess.run(["cf", "curl", f"/v3/{endpoint}/{guid}"], capture_output=True, text=True, check=True)
-        return json.loads(result.stdout)
-    except subprocess.CalledProcessError:
-        print(f"Erreur lors de la récupération des données pour {endpoint} {guid}")
-        return None
+    # Extraire les GUID des tags
+    local pcf_instance_id pcf_space_guid
+    pcf_instance_id=$(echo "$tags_json" | jq -r '.["pcf-instance-id"] // empty')
+    pcf_space_guid=$(echo "$tags_json" | jq -r '.["pcf-space-guid"] // empty')
 
-def get_app_bindings(instance_id):
-    """Récupère la liste des applications liées à une instance de service."""
-    try:
-        result = subprocess.run(["cf", "curl", f"/v3/service_credential_bindings?service_instance_guids={instance_id}"],
-                                capture_output=True, text=True, check=True)
-        bindings_data = json.loads(result.stdout)
+    echo "$pcf_instance_id|$pcf_space_guid"
+}
 
-        app_names = []
-        for binding in bindings_data.get("resources", []):
-            app_guid = binding.get("relationships", {}).get("app", {}).get("data", {}).get("guid")
-            if app_guid:
-                app_data = get_cf_info("apps", app_guid)
-                if app_data:
-                    app_names.append(app_data.get("name", "Inconnu"))
+get_cf_names() {
+    local instance_id="$1"
+    local space_guid="$2"
 
-        return len(app_names), app_names
-    except subprocess.CalledProcessError:
-        print(f"Erreur lors de la récupération des bindings pour l'instance {instance_id}")
-        return 0, []
+    local service_name space_name
 
-# Récupérer les informations nécessaires
-org_data = get_cf_info("organizations", PCF_ORG_GUID)
-space_data = get_cf_info("spaces", PCF_SPACE_GUID)
-instance_data = get_cf_info("service_instances", PCF_INSTANCE_ID)
+    # Récupérer le nom de l'instance de service
+    if [[ -n "$instance_id" ]]; then
+        service_name=$(cf curl /v3/service_instances/"$instance_id" | jq -r '.name // empty')
+    fi
 
-if org_data and space_data and instance_data:
-    org_name = org_data.get("name", "Inconnu")
-    space_name = space_data.get("name", "Inconnu")
-    instance_name = instance_data.get("name", "Inconnu")
-    
-    # Récupérer le type de service
-    service_plan_url = instance_data.get("relationships", {}).get("service_plan", {}).get("data", {}).get("guid")
-    service_type = "Inconnu"
-    
-    if service_plan_url:
-        service_plan_data = get_cf_info("service_plans", service_plan_url)
-        if service_plan_data:
-            service_type = service_plan_data.get("name", "Inconnu")
+    # Récupérer le nom du space
+    if [[ -n "$space_guid" ]]; then
+        space_name=$(cf curl /v3/spaces/"$space_guid" | jq -r '.name // empty')
+    fi
 
-    # Récupérer les applications liées
-    bind_count, app_names = get_app_bindings(PCF_INSTANCE_ID)
+    echo "$service_name|$space_name"
+}
 
-    # Affichage des résultats
-    app_list = ", ".join(app_names) if app_names else "Aucune application liée"
-    print(f"Instance '{instance_name}' ({service_type}) de l'org '{org_name}' dans le space '{space_name}', liée à {bind_count} application(s) : {app_list}.")
-else:
-    print("Impossible de récupérer toutes les informations.")
+
+dans boucle for
+
+# Récupérer les tags pour obtenir les GUID de l'instance et du space
+tags=$(get_tags "$rg" "$server" "$name")
+pcf_instance_id=$(echo "$tags" | cut -d '|' -f1)
+pcf_space_guid=$(echo "$tags" | cut -d '|' -f2)
+
+# Récupérer les noms à partir des GUID Cloud Foundry
+cf_data=$(get_cf_names "$pcf_instance_id" "$pcf_space_guid")
+service_instance_name=$(echo "$cf_data" | cut -d '|' -f1)
+space_name=$(echo "$cf_data" | cut -d '|' -f2)
+
+
+echo "$compteur,$name,$dbId,$status,$location,$env,$server,$org,$detailed_sku,$maxSizeGB Go,$usedSizeGB Go,$allocatedSizeGB Go,$remainingSizeGB Go,$usagePercentage%,$allocatedPercentage%,$service_instance_name,$space_name" >> "$MYDIRFILE_OUTPUT_CSV"
+
+
