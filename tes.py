@@ -15,16 +15,25 @@ def get_cf_info(endpoint, guid):
         print(f"Erreur lors de la récupération des données pour {endpoint} {guid}")
         return None
 
-def get_bind_count(instance_id):
-    """Compte le nombre d'applications liées à une instance de service."""
+def get_app_bindings(instance_id):
+    """Récupère la liste des applications liées à une instance de service."""
     try:
         result = subprocess.run(["cf", "curl", f"/v3/service_credential_bindings?service_instance_guids={instance_id}"],
                                 capture_output=True, text=True, check=True)
         bindings_data = json.loads(result.stdout)
-        return bindings_data.get("pagination", {}).get("total_results", 0)
+
+        app_names = []
+        for binding in bindings_data.get("resources", []):
+            app_guid = binding.get("relationships", {}).get("app", {}).get("data", {}).get("guid")
+            if app_guid:
+                app_data = get_cf_info("apps", app_guid)
+                if app_data:
+                    app_names.append(app_data.get("name", "Inconnu"))
+
+        return len(app_names), app_names
     except subprocess.CalledProcessError:
         print(f"Erreur lors de la récupération des bindings pour l'instance {instance_id}")
-        return 0
+        return 0, []
 
 # Récupérer les informations nécessaires
 org_data = get_cf_info("organizations", PCF_ORG_GUID)
@@ -45,10 +54,11 @@ if org_data and space_data and instance_data:
         if service_plan_data:
             service_type = service_plan_data.get("name", "Inconnu")
 
-    # Récupérer le nombre de bindings
-    bind_count = get_bind_count(PCF_INSTANCE_ID)
+    # Récupérer les applications liées
+    bind_count, app_names = get_app_bindings(PCF_INSTANCE_ID)
 
     # Affichage des résultats
-    print(f"Instance '{instance_name}' ({service_type}) de l'org '{org_name}' dans le space '{space_name}', liée à {bind_count} application(s).")
+    app_list = ", ".join(app_names) if app_names else "Aucune application liée"
+    print(f"Instance '{instance_name}' ({service_type}) de l'org '{org_name}' dans le space '{space_name}', liée à {bind_count} application(s) : {app_list}.")
 else:
     print("Impossible de récupérer toutes les informations.")
