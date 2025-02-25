@@ -1,29 +1,14 @@
-get_tags() {
-    local resource_group="$1"
-    local server="$2"
-    local db_name="$3"
-
-    # Récupérer les tags de la base de données
-    local tags_json
-    tags_json=$(az sql db show --resource-group "$resource_group" --server "$server" --name "$db_name" --query "tags" --output json)
-
-    # Extraire les GUID des tags
-    local pcf_instance_id pcf_space_guid
-    pcf_instance_id=$(echo "$tags_json" | jq -r '.["pcf-instance-id"] // empty')
-    pcf_space_guid=$(echo "$tags_json" | jq -r '.["pcf-space-guid"] // empty')
-
-    echo "$pcf_instance_id|$pcf_space_guid"
-}
-
 get_cf_names() {
     local instance_id="$1"
     local space_guid="$2"
 
-    local service_name space_name
+    local service_name space_name service_plan_guid service_plan_name
 
-    # Récupérer le nom de l'instance de service
+    # Récupérer le nom de l'instance de service et son plan GUID
     if [[ -n "$instance_id" ]]; then
-        service_name=$(cf curl /v3/service_instances/"$instance_id" | jq -r '.name // empty')
+        service_data=$(cf curl /v3/service_instances/"$instance_id")
+        service_name=$(echo "$service_data" | jq -r '.name // empty')
+        service_plan_guid=$(echo "$service_data" | jq -r '.relationships.service_plan.data.guid // empty')
     fi
 
     # Récupérer le nom du space
@@ -31,23 +16,24 @@ get_cf_names() {
         space_name=$(cf curl /v3/spaces/"$space_guid" | jq -r '.name // empty')
     fi
 
-    echo "$service_name|$space_name"
+    # Récupérer le nom du plan de l'instance de service
+    if [[ -n "$service_plan_guid" ]]; then
+        service_plan_name=$(cf curl /v3/service_plans/"$service_plan_guid" | jq -r '.name // empty')
+    fi
+
+    echo "$service_name|$space_name|$service_plan_name"
 }
 
 
-dans boucle for
 
 # Récupérer les tags pour obtenir les GUID de l'instance et du space
 tags=$(get_tags "$rg" "$server" "$name")
 pcf_instance_id=$(echo "$tags" | cut -d '|' -f1)
 pcf_space_guid=$(echo "$tags" | cut -d '|' -f2)
 
-# Récupérer les noms à partir des GUID Cloud Foundry
+# Récupérer les noms et le plan à partir des GUID Cloud Foundry
 cf_data=$(get_cf_names "$pcf_instance_id" "$pcf_space_guid")
 service_instance_name=$(echo "$cf_data" | cut -d '|' -f1)
 space_name=$(echo "$cf_data" | cut -d '|' -f2)
-
-
-echo "$compteur,$name,$dbId,$status,$location,$env,$server,$org,$detailed_sku,$maxSizeGB Go,$usedSizeGB Go,$allocatedSizeGB Go,$remainingSizeGB Go,$usagePercentage%,$allocatedPercentage%,$service_instance_name,$space_name" >> "$MYDIRFILE_OUTPUT_CSV"
-
+service_plan_name=$(echo "$cf_data" | cut -d '|' -f3)
 
