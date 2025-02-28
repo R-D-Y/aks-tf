@@ -1,50 +1,52 @@
-import subprocess
-import json
+get_tags() {
+    local resource_group="$1"
+    local server="$2"
+    local db_name="$3"
 
-def get_cf_info(endpoint, guid):
-    """Utilise 'cf curl' pour récupérer des informations depuis Cloud Foundry."""
-    try:
-        result = subprocess.run(["cf", "curl", f"/v3/{endpoint}/{guid}"], capture_output=True, text=True, check=True)
-        return json.loads(result.stdout)
-    except subprocess.CalledProcessError:
-        print(f"Erreur lors de la récupération des données pour {endpoint} {guid}")
-        return None
+    # Récupérer les tags de la base de données
+    local tags_json
+    tags_json=$(az sql db show --resource-group "$resource_group" --server "$server" --name "$db_name" --query "tags" --output json)
 
-def main():
-    # Demander le GUID de l'instance en problème
-    service_instance_guid = input("Quelle est le GUID de l’instance de service qui ne marche pas ? ").strip()
+    # Extraire les GUID des tags ou mettre "notag" si absent
+    local pcf_instance_id pcf_space_guid
+    pcf_instance_id=$(echo "$tags_json" | jq -r '.["pcf-instance-id"] // "notag"')
+    pcf_space_guid=$(echo "$tags_json" | jq -r '.["pcf-space-guid"] // "notag"')
 
-    # Récupérer les informations de l'instance
-    instance_data = get_cf_info("service_instances", service_instance_guid)
-    if not instance_data:
-        print("Impossible de récupérer les informations de l’instance.")
-        return
+    echo "$pcf_instance_id|$pcf_space_guid"
+}
 
-    # Récupérer les détails
-    instance_name = instance_data.get("name", "Inconnu")
-    instance_state = instance_data.get("last_operation", {}).get("state", "Inconnu")
-    
-    # Récupérer le space GUID et son nom
-    space_guid = instance_data.get("relationships", {}).get("space", {}).get("data", {}).get("guid")
-    space_name = "Inconnu"
-    
-    if space_guid:
-        space_data = get_cf_info("spaces", space_guid)
-        if space_data:
-            space_name = space_data.get("name", "Inconnu")
-    
-    # Récupérer le org GUID et son nom
-    org_guid = space_data.get("relationships", {}).get("organization", {}).get("data", {}).get("guid") if space_data else None
-    org_name = "Inconnu"
 
-    if org_guid:
-        org_data = get_cf_info("organizations", org_guid)
-        if org_data:
-            org_name = org_data.get("name", "Inconnu")
+get_cf_names() {
+    local instance_id="$1"
+    local space_guid="$2"
 
-    # Affichage des résultats
-    print(f"Le service instance en problème est le suivant :")
-    print(f"Instance de service '{instance_name}' du space '{space_name}' de l'org '{org_name}' est dans l’état '{instance_state}'.")
-    
-if __name__ == "__main__":
-    main()
+    local service_name="notag"
+    local space_name="notag"
+
+    # Récupérer le nom de l'instance de service
+    if [[ "$instance_id" != "notag" ]]; then
+        service_name=$(cf curl /v3/service_instances/"$instance_id" | jq -r '.name // "notag"')
+    fi
+
+    # Récupérer le nom du space
+    if [[ "$space_guid" != "notag" ]]; then
+        space_name=$(cf curl /v3/spaces/"$space_guid" | jq -r '.name // "notag"')
+    fi
+
+    echo "$service_name|$space_name"
+}
+
+
+# Récupérer les tags pour obtenir les GUID de l'instance et du space
+tags=$(get_tags "$rg" "$server" "$name")
+pcf_instance_id=$(echo "$tags" | cut -d '|' -f1)
+pcf_space_guid=$(echo "$tags" | cut -d '|' -f2)
+
+# Récupérer les noms à partir des GUID Cloud Foundry
+cf_data=$(get_cf_names "$pcf_instance_id" "$pcf_space_guid")
+service_instance_name=$(echo "$cf_data" | cut -d '|' -f1)
+space_name=$(echo "$cf_data" | cut -d '|' -f2)
+
+
+
+
