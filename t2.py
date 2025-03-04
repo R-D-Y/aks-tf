@@ -1,35 +1,55 @@
 #!/bin/bash
 
-# Fichiers d'entrée et de sortie
+# Fichier d'entrée contenant les IPs
 INPUT_FILE="input.txt"
-SUBSCRIPTIONS_FILE="abo.txt"
+ABO_FILE="abo.txt"
 OUTPUT_FILE="output.txt"
 
 # En-tête du fichier de sortie
 echo "Nom,Existe,IP,RessourceGroup,deployment,job" > "$OUTPUT_FILE"
 
-# Parcourir chaque abonnement
-while read -r SUB_ID; do
-    echo "Traitement de l'abonnement : $SUB_ID"
-    az account set --subscription "$SUB_ID"
+# Parcourir chaque abonnement Azure
+while IFS= read -r subscription; do
+    echo "Changement d'abonnement : $subscription"
+    az account set --subscription "$subscription"
 
-    # Parcourir chaque IP
-    while read -r IP; do
-        # Rechercher la VM correspondant à l'IP
-        VM_INFO=$(az vm list --query "[?networkProfile.networkInterfaces[].ipConfigurations[].privateIPAddress=='$IP']" -o json)
+    # Parcourir chaque IP du fichier input.txt
+    while IFS= read -r ip; do
+        echo "Recherche de l'IP : $ip"
 
-        if [[ "$VM_INFO" == "[]" ]]; then
-            echo "N/A,Non,$IP,N/A,N/A,N/A" >> "$OUTPUT_FILE"
+        # Rechercher l'interface réseau associée à l'IP
+        nic_id=$(az network nic list --query "[?ipConfigurations[0].privateIPAddress=='$ip'].id" -o tsv)
+
+        if [[ -n "$nic_id" ]]; then
+            # Récupérer le nom de la VM associée à cette carte réseau
+            vm_name=$(az network nic show --ids "$nic_id" --query "virtualMachine.id" -o tsv | awk -F'/' '{print $9}')
+            rg=$(az network nic show --ids "$nic_id" --query "resourceGroup" -o tsv)
+
+            if [[ -n "$vm_name" ]]; then
+                # Vérifier si la VM existe
+                exists="oui"
+                # Récupérer les tags deployment et job
+                deployment=$(az vm show -g "$rg" -n "$vm_name" --query "tags.deployment" -o tsv 2>/dev/null || echo "N/A")
+                job=$(az vm show -g "$rg" -n "$vm_name" --query "tags.job" -o tsv 2>/dev/null || echo "N/A")
+            else
+                exists="non"
+                vm_name="N/A"
+                deployment="N/A"
+                job="N/A"
+            fi
         else
-            VM_NAME=$(echo "$VM_INFO" | jq -r '.[0].name')
-            RG=$(echo "$VM_INFO" | jq -r '.[0].resourceGroup')
-            TAG_DEPLOYMENT=$(echo "$VM_INFO" | jq -r '.[0].tags.deployment // "N/A"')
-            TAG_JOB=$(echo "$VM_INFO" | jq -r '.[0].tags.job // "N/A"')
-
-            echo "$VM_NAME,Oui,$IP,$RG,$TAG_DEPLOYMENT,$TAG_JOB" >> "$OUTPUT_FILE"
+            vm_name="N/A"
+            exists="non"
+            rg="N/A"
+            deployment="N/A"
+            job="N/A"
         fi
+
+        # Écrire les résultats dans le fichier de sortie
+        echo "$vm_name,$exists,$ip,$rg,$deployment,$job" >> "$OUTPUT_FILE"
+
     done < "$INPUT_FILE"
 
-done < "$SUBSCRIPTIONS_FILE"
+done < "$ABO_FILE"
 
-echo "Traitement terminé. Résultats dans $OUTPUT_FILE."
+echo "Traitement terminé. Résultats enregistrés dans $OUTPUT_FILE."
