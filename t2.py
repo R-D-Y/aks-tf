@@ -10,3 +10,5 @@ if not password:
 
 if not vhost:
     vhost = credentials.get('vhost') or credentials.get('protocols', {}).get('amqp', {}).get('vhost')
+    
+    print(f"DEBUG: api_uri={api_uri}, username={username}, password=******, vhost={vhost}")
