@@ -1,4 +1,4 @@
-# Extraire le bon dictionnaire des credentials
+## Extraire le bon dictionnaire des credentials
 if 'credentials' in credentials and isinstance(credentials['credentials'], dict):
     credentials = credentials['credentials']
 
