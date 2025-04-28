@@ -1,17 +1,15 @@
-## Extraire le bon dictionnaire des credentials
-if 'credentials' in credentials and isinstance(credentials['credentials'], dict):
-    credentials = credentials['credentials']
+cd /opt/apps
 
-# Récupérer les bonnes valeurs
-api_uri = credentials.get('http_api_uri') or credentials.get('http_api_uris', [None])[0]
-username = credentials.get('username') or credentials.get('protocols', {}).get('amqp', {}).get('username')
-password = credentials.get('password') or credentials.get('protocols', {}).get('amqp', {}).get('password')
-vhost = credentials.get('vhost') or credentials.get('protocols', {}).get('amqp', {}).get('vhost')
-
-# Afficher les valeurs récupérées pour debug
-print(f"DEBUG: api_uri={api_uri}, username={username}, password=******, vhost={vhost}")
-
-# Vérification avant de continuer
-if not all([api_uri, username, password, vhost]):
-    print(f"ERROR: Missing required credential information for {instance['name']}")
-    return {}
+for file in bosh credhub fly kubelogin om pivnet uaac yq; do
+    if [ -e "newbin/$file" ]; then
+        if [ -e "bin/$file" ]; then
+            cp newbin/$file bin/$file
+            echo "Mis à jour : $file"
+        else
+            cp -p newbin/$file bin/
+            echo "Ajouté : $file"
+        fi
+    else
+        echo "ATTENTION : $file n'existe pas dans newbin/"
+    fi
+done
